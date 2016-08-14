@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<head>
+<title>chart</title>
+<link rel="stylesheet" href="style/style.min.css" type="text/css" media="screen"/>
+<link rel="stylesheet" type="text/css" href="http://cloud.typography.com/7626174/696048/css/fonts.css"/>
+<link href='https://fonts.googleapis.com/css?family=Inconsolata' rel='stylesheet' type='text/css'>
+<meta charset="utf-8">
+</head>
+<body>
+<div id="chart"></div>
+<div id="notes">
+<!--
+<h1>Never Married, By Age</h1>
+<p>Use the filters below to see percentages for a group of interest.</p>
+-->
+<div id="sex" class="section">
+<h3>Sex</h3>
+<div class="button current" data-val="">Everyone</div>
+<div class="button" data-val="f">Female</div>
+<div class="button" data-val="m" style="margin-right:0">Male</div>
+</div>
+<div id="demographics">
+<div class="employment section">
+<h3>Employment</h3>
+<div class="button" data-val="empEMP">Employed</div>
+<div class="button" data-val="empUNEMP">Unemployed</div>
+<div class="button" data-val="empNILF">Not in Labor Force</div>
+<h3>Nationality</h3>
+<div class="button" data-val="natMAL">Maldivian</div>
+<div class="button" data-val="natFO">Foreign</div>
+</div>
+<div class="education section">
+<h3>Education</h3>
+<div class="button" data-val="eduNC">No certificate</div>
+<div class="button" data-val="eduMS">Middle School</div>
+<div class="button" data-val="eduHS">High School</div>
+<div class="button" data-val="eduDIPL">Diploma</div>
+<!-- <div class="button" data-val="eduDIPM">Diploma 6mos or more</div> -->
+<div class="button" data-val="eduBS">Bachelor's</div>
+<div class="button" data-val="eduADV">Advanced</div>
+</div>
+<div class="locality section">
+<h3>Locality</h3>
+<div class="column">
+<div class="button current" data-val="origREP">Republic</div>
+<div class="button" data-val="origMALE">Male'</div>
+<div class="button" data-val="origAD">Admin islands</div>
+<div class="button" data-val="origNON">Non-admin islands</div>
+</div>
+<div class="clr"></div>
+</div>
+<div class="clr"></div>
+</div>
+<script type="text/javascript" src="js/pym.min.js"></script>
+<script src="js/d3-3-5-5.min.js"></script>
+<script>
+var USER_SEX = '';
+var USER_DEMO = 'origREP';
+
+var margin = {top: 30, right: 20, bottom: 40, left: 30},
+    width = 1090 - margin.left - margin.right,
+	height = 600 - margin.top - margin.bottom;
+
+var bisectAge = d3.bisector(function(d) { return d.age; }).left;
+var percent = d3.format(".0%");
+
+var x = d3.scale.linear()
+    .range([0, width]);
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+	
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+	.outerTickSize(0);
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+	.tickSize(width)
+    .orient("right")
+	.tickFormat(percent);
+	
+var area = d3.svg.area()
+	// .defined(function(d) { return !isNaN(d.pct); })
+	.x(function(d) { return x(d.age); })
+	.y0(height)
+	.y1(function(d) { return y(d.pct); });
+
+var svg = d3.select("#chart").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+	
+
+d3.tsv("data/nevermarried_byage.tsv", type, function(error, data) {
+	if (error) throw error;
+
+	var fields = d3.keys(data[0]).filter(function(key) { return key !== "age"; });
+	var demos = fields.map(function(key) {
+		return {
+			key: key,
+			values: data.map(function(d) {
+				return { age: d.age, pct: d[key] };
+			})
+		};
+	});
+	
+	
+	x.domain(d3.extent(data, function(d) { return d.age; }));
+	y.domain([
+		d3.min(demos, function(d) { return d3.min(d.values, function(v) { return v.pct; }); }),
+    	d3.max(demos, function(d) { return d3.max(d.values, function(v) { return v.pct; }); })
+	]);
+	
+	svg.append("g")
+    	.attr("class", "y axis")
+    	.call(yAxis)
+  	  .append("text")
+  		.attr("y", -20)
+		.attr("dx", ".1em")
+  		.style("text-anchor", "start")
+  		.text("NEVER MARRIED");
+	svg.selectAll(".y.axis text").attr("x", -30);
+	
+	var key = USER_DEMO + USER_SEX;
+	var key_index = fields.indexOf(key);
+	svg.append("path")
+		.datum(demos[key_index].values)
+		.attr("class", "area")
+		.attr("d", area);
+	
+ 	svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis)
+	  .append("text")
+		.attr("x", x(0))
+		.attr("y", 19)
+		.attr("dx", "-.2em")
+		.attr("dy", "1.4em")
+		.text("YEARS OLD");
+		;
+  	
+	// Baseline
+	svg.append("g")
+    	.attr("class", "baseline")
+    	.attr("transform", "translate(0,"+ height +")")
+  	  .append("line")
+    	.attr("x1", 0)
+    	.attr("x2", width)
+    	.attr("y2", 0);
+	
+	// Sex.
+	d3.selectAll("#sex .button").on("click", function() {
+		USER_SEX = d3.select(this).attr("data-val");
+		d3.select("#sex .current").classed("current", false);
+		d3.select(this).classed("current", true);
+		update();
+	});
+	
+	
+	// Demographics.
+	d3.selectAll("#demographics .button").on("click", function() {
+		USER_DEMO = d3.select(this).attr("data-val");
+		d3.select("#demographics .current").classed("current", false);
+		d3.select(this).classed("current", true);
+		update();
+	});
+		
+	function update() {
+		
+		var key = USER_DEMO + USER_SEX;
+		var key_index = fields.indexOf(key);
+		
+		svg.select(".area")
+			.transition()
+			.duration(600)
+			.attr("d", function(d) {
+				var nonzero_index = demos[key_index].values.findIndex(isNonzero);
+				// console.log("nonzeroindex: " + nonzero_index);
+				if (nonzero_index > 0 && nonzero_index < 21) {
+					
+					// Slice
+					var left_side = demos[key_index].values.slice(0, nonzero_index);
+					
+					var values_length = demos[key_index].values.length;
+					var right_side = demos[key_index].values.slice(nonzero_index, values_length);
+					
+					var spliced_data = left_side.concat([{ age: nonzero_index, pct: 0 }], right_side);
+					
+					// console.log(spliced_data);
+					return area(spliced_data);
+				} else {
+					// console.log(demos[key_index].values);
+					return area(demos[key_index].values);
+				}
+				 
+			});
+	} // @end update()
+	
+	
+	
+	
+	//
+	// Show values on mouseover
+	//
+	
+	var focus = svg.append("g")
+    	.attr("class", "focus")
+    	.style("display", "none");
+	focus.append("circle")
+    	.attr("r", 5);
+	focus.append("text")
+		.attr("class", "value")
+    	.attr("x", 9)
+    	.attr("dy", ".33em");
+	focus.append("line")
+		.attr("x1", 0)
+		.attr("x2", 0)
+		.attr("y1", 0);
+	focus.append("text")
+		.attr("class", "agevalue")
+		.attr("text-anchor", "middle")
+		.attr("y", height + margin.bottom);
+
+	// Events	
+	svg.append("rect")
+    	.attr("class", "overlay")
+    	.attr("width", width)
+    	.attr("height", height)
+    	.on("mouseover", function() { 
+			focus.style("display", null); 
+		})
+    	.on("mouseout", function() { 
+			focus.style("display", "none"); 
+		})
+    	.on("mousemove", mousemove);
+
+
+	function mousemove() {
+		var key = USER_DEMO + USER_SEX;
+		var key_index = fields.indexOf(key);
+		
+		var x0 = x.invert(d3.mouse(this)[0]),
+			i = bisectAge(demos[key_index].values, x0, 1),
+			d0 = demos[key_index].values[i - 1],
+			d1 = demos[key_index].values[i],
+			d = x0 - d0.age > d1.age - x0 ? d1 : d0;
+		focus.attr("transform", "translate(" + x(d.age) + "," + y(d.pct) + ")");
+		focus.select("text.value").text(percent(d.pct));
+	
+		// Adjust label horizontal positions.
+		if (x0 > 70) {
+			focus.select("text.value").attr("x", -30);
+		} else {
+			focus.select("text.value").attr("x", 10);
+		}
+	
+		// Adjust indicator line.
+		focus.select("line")
+			.attr("y2", height-y(d.pct)+xAxis.tickSize());
+		
+		focus.select("text.agevalue")
+			.attr("y", height-y(d.pct)+xAxis.tickPadding()+16)
+			.text(function() {
+				if (d.age == 85) {
+					return ">" + d.age;
+				} else {	
+					return d.age;
+				}
+			});
+	
+	} // @end mousemove()
+	
+	var pymChild = new pym.Child();
+}); // @end d3.tsv()
+
+
+
+function type(d, i) {
+	
+	d3.keys(d).map(function(key) {
+		// if (d[key] == '') {
+			// d[key] = NaN;
+		// } else {
+			d[key] = +d[key];
+		// }
+		
+	});
+	return d;
+	
+} // @end type()
+
+
+
+function isNonzero(element, index, array) {
+	// console.log(element.pct);
+	return element.pct > 0;
+}
+
+
+</script>
+</body>
